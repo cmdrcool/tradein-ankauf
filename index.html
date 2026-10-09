@@ -66,7 +66,7 @@ function init(d){
   D=d;$('login').classList.add('hidden');$('app').classList.remove('hidden');
   const dates=[...new Set(d.p.map(r=>r[0]))].sort().reverse();
   $('stand').textContent='Stand '+new Date(d.stand).toLocaleDateString('de-DE');
-  opts($('fd'),dates);opts($('fm'),[...new Set(Object.values(d.devs).map(v=>v[1]))].sort((a,b)=>mk(a)<mk(b)?-1:1),true);
+  $('fd').innerHTML=dates.map(d=>`<option value="${d}">${new Date(d).toLocaleDateString('de-DE')}</option>`).join('');opts($('fm'),[...new Set(Object.values(d.devs).map(v=>v[1]))].sort((a,b)=>mk(a)<mk(b)?-1:1),true);
   opts($('fz'),Z);$('fz').value='Gut';updS();
   ['fd','fs','fz'].forEach(i=>$(i).onchange=render);$('fm').onchange=()=>{updS();render()};render();
 }
