@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Trade-In Ankaufpreise</title>
+<title>Trade-In An- & Verkaufspreise</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
 :root{--m:#e20074;--bg:#f5f5f7;--c:#fff;--t:#1d1d1f;--s:#6e6e73;--g:#c6efce}
@@ -23,7 +23,7 @@ td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.er
 </style>
 </head>
 <body>
-<header><h1>Trade-In · Ankaufpreise</h1><span id="stand" class="s" style="color:#fff"></span></header>
+<header><h1>Trade-In · An- &amp; Verkaufspreise</h1><span id="stand" class="s" style="color:#fff"></span></header>
 <main>
 <div id="login" class="card">
   <h2>Anmeldung</h2>
@@ -33,6 +33,7 @@ td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.er
 </div>
 <div id="app" class="hidden">
   <div class="card f">
+    <label>Ansicht<select id="fa"><option value="a">Ankauf (wir verkaufen an)</option><option value="v">Verkauf gebraucht (Shops)</option><option value="s">Spread (Verkauf − Ankauf)</option></select></label>
     <label>Datum<select id="fd"></select></label>
     <label>Modell<select id="fm"></select></label>
     <label>Speicher<select id="fs"></select></label>
@@ -40,16 +41,16 @@ td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.er
     <button class="sec" id="csv">CSV-Export (Auswahl, alle Tage)</button>
     <button class="sec" id="out">Abmelden</button>
   </div>
-  <div class="card"><h3 style="margin-top:0">Preisverlauf – Max. Ankaufpreis je Variante</h3>
+  <div class="card"><h3 style="margin-top:0" id="cht">Preisverlauf</h3>
     <div style="height:340px"><canvas id="ch"></canvas></div>
-    <div class="s">Je Linie: bester Preis über alle Anbieter pro Tag (gewählter Zustand).</div></div>
+    <div class="s" id="chs"></div></div>
   <div class="card"><h3 style="margin-top:0">Preise am gewählten Tag</h3><div class="wrap"><table id="tb"></table></div>
-    <div class="s">Grün = Bestpreis. Quelle: handyverkauf.net · frei für alle Netze, voll funktionsfähig.</div></div>
+    <div class="s" id="tbs"></div></div>
 </div>
 </main>
 <script>
-const Z=['Sehr gut','Gut','Akzeptabel'],A=['zoxs','rebuy','swappie','clevertronic','wirkaufens'];
-const $=id=>document.getElementById(id),eur=v=>v==null?'–':v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const ZA=['Sehr gut','Gut','Akzeptabel'],ZV=['Wie neu','Sehr gut','Gut','Akzeptabel'],A=['zoxs','rebuy','swappie','clevertronic','wirkaufens'];
+const $=id=>document.getElementById(id),eur=v=>v==null||!isFinite(v)?'–':v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 let D,chart;
 async function unlock(pw){
@@ -61,38 +62,59 @@ async function unlock(pw){
 }
 const sk=s=>parseInt(s)*(s.includes('TB')?1024:1);
 const mk=m=>m.replace(' Pro Max','~2').replace(' Pro','~1');
+const mx=a=>{a=a.filter(x=>x!=null);return a.length?Math.max(...a):null},mn=a=>{a=a.filter(x=>x!=null);return a.length?Math.min(...a):null};
 function opts(el,vals,all){el.innerHTML=(all?'<option value="">Alle</option>':'')+vals.map(v=>`<option>${v}</option>`).join('')}
+function index(P,ids){const ix={};P.forEach(r=>{if(ids.has(String(r[1])))(ix[r[0]+'|'+r[1]+'|'+r[3]]??={})[r[2]]=r[4]});return ix}
+function cfg(){const m=$('fa').value;D.v??=[];
+  if(m==='a')return{m,Z:ZA,P:D.p,shops:A,nm:D.an,agg:mx,lab:'Max',t:'Max. Ankaufpreis je Variante',n:'Grün = bester Ankaufpreis. Quelle: handyverkauf.net · frei für alle Netze, voll funktionsfähig.'};
+  const present=new Set(D.v.map(r=>r[2]));const shops=[...Object.keys(D.sh||{}).filter(s=>present.has(s)),...[...present].filter(s=>!(D.sh||{})[s])];
+  if(m==='v')return{m,Z:ZV,P:D.v,shops,nm:D.sh||{},agg:mn,lab:'Min',t:'Günstigster Gebraucht-Verkaufspreis je Variante',n:'Grün = günstigster Shop. Quelle: handyverkauf.net/gebraucht-kaufen · günstigstes Angebot je Shop, ohne Versand.'};
+  return{m,Z:ZA,t:'Spread (günstigster Verkauf − bester Ankauf) je Variante',n:'Spread = günstigster Gebraucht-Verkaufspreis minus bester Ankaufpreis im selben Zustand.'}}
 function init(d){
   D=d;$('login').classList.add('hidden');$('app').classList.remove('hidden');
-  const dates=[...new Set(d.p.map(r=>r[0]))].sort().reverse();
+  const dates=[...new Set([...d.p,...(d.v||[])].map(r=>r[0]))].sort().reverse();
   $('stand').textContent='Stand '+new Date(d.stand).toLocaleDateString('de-DE');
   $('fd').innerHTML=dates.map(d=>`<option value="${d}">${new Date(d).toLocaleDateString('de-DE')}</option>`).join('');opts($('fm'),[...new Set(Object.values(d.devs).map(v=>v[1]))].sort((a,b)=>mk(a)<mk(b)?-1:1),true);
-  opts($('fz'),Z);$('fz').value='Gut';updS();
-  ['fd','fs','fz'].forEach(i=>$(i).onchange=render);$('fm').onchange=()=>{updS();render()};render();
+  updZ();updS();
+  ['fd','fs','fz'].forEach(i=>$(i).onchange=render);$('fm').onchange=()=>{updS();render()};$('fa').onchange=()=>{updZ();render()};render();
 }
+function updZ(){const c=cfg(),cur=$('fz').value;opts($('fz'),c.Z);$('fz').value=c.Z.includes(cur)?cur:'Gut'}
 function updS(){const m=$('fm').value;opts($('fs'),[...new Set(Object.values(D.devs).filter(v=>!m||v[1]==m).map(v=>v[2]))].sort((a,b)=>sk(a)-sk(b)),true)}
 function sel(){const m=$('fm').value,s=$('fs').value;return Object.entries(D.devs).filter(([,v])=>(!m||v[1]==m)&&(!s||v[2]==s))
   .sort(([,a],[,b])=>(mk(a[1])+sk(a[2])/1e5+a[3])<(mk(b[1])+sk(b[2])/1e5+b[3])?-1:1)}
 function render(){
-  const day=$('fd').value,z=Z.indexOf($('fz').value),devs=sel(),ids=new Set(devs.map(([i])=>i));
-  const ix={};D.p.forEach(r=>{if(ids.has(String(r[1])))(ix[r[0]+'|'+r[1]+'|'+r[3]]??={})[r[2]]=r[4]});
-  let h='<tr><th>Modell</th><th>Speicher</th><th>Farbe</th>'+Z.map(zz=>A.map(a=>`<th>${zz}<br>${D.an[a]}</th>`).join('')+`<th>${zz}<br>Max</th>`).join('')+'</tr>';
-  for(const [id,v] of devs){h+=`<tr><td>${v[1]}</td><td>${v[2]}</td><td>${v[3]}</td>`;
-    Z.forEach((_,zi)=>{const p=ix[day+'|'+id+'|'+zi]||{},vals=A.map(a=>p[a]),mx=Math.max(...vals.filter(x=>x!=null));
-      h+=vals.map(x=>`<td class="${x===mx?'b':''}">${eur(x)}</td>`).join('')+`<td><b>${isFinite(mx)?eur(mx):'–'}</b></td>`});h+='</tr>'}
+  const c=cfg(),day=$('fd').value,devs=sel(),ids=new Set(devs.map(([i])=>i)),zs=$('fz').value;
+  $('cht').textContent='Preisverlauf – '+c.t;$('tbs').textContent=c.n;$('chs').textContent='Je Linie: Wert pro Tag im gewählten Zustand ('+zs+').';
+  let h,series;
+  if(c.m==='s'){
+    const ia=index(D.p,ids),iv=index(D.v,ids),za=i=>ZA.indexOf(i),zv=i=>ZV.indexOf(i);
+    const val=(d,id,z)=>{const a=mx(Object.values(ia[d+'|'+id+'|'+za(z)]||{})),v=mn(Object.values(iv[d+'|'+id+'|'+zv(z)]||{}));return[a,v,a!=null&&v!=null?v-a:null]};
+    h='<tr><th>Modell</th><th>Speicher</th><th>Farbe</th>'+ZA.map(z=>`<th>${z}<br>Ankauf max</th><th>${z}<br>Verkauf min</th><th>${z}<br>Spread</th>`).join('')+'</tr>';
+    for(const [id,v] of devs){h+=`<tr><td>${v[1]}</td><td>${v[2]}</td><td>${v[3]}</td>`+ZA.map(z=>{const[a,b,s]=val(day,id,z);
+      return `<td>${eur(a)}</td><td>${eur(b)}</td><td><b>${eur(s)}</b>${s!=null&&a?` <span class="s">${(s/a*100).toFixed(1).replace('.',',')} %</span>`:''}</td>`}).join('')+'</tr>'}
+    series=(d,id)=>val(d,id,zs)[2];
+  }else{
+    const z=c.Z.indexOf(zs),ix=index(c.P,ids);
+    h='<tr><th>Modell</th><th>Speicher</th><th>Farbe</th>'+c.Z.map(zz=>c.shops.map(a=>`<th>${zz}<br>${c.nm[a]||a}</th>`).join('')+`<th>${zz}<br>${c.lab}</th>`).join('')+'</tr>';
+    for(const [id,v] of devs){h+=`<tr><td>${v[1]}</td><td>${v[2]}</td><td>${v[3]}</td>`;
+      c.Z.forEach((_,zi)=>{const p=ix[day+'|'+id+'|'+zi]||{},vals=c.shops.map(a=>p[a]),b=c.agg(vals);
+        h+=vals.map(x=>`<td class="${x!=null&&x===b?'b':''}">${eur(x)}</td>`).join('')+`<td><b>${eur(b)}</b></td>`});h+='</tr>'}
+    series=(d,id)=>{const p=ix[d+'|'+id+'|'+z];return p?c.agg(Object.values(p)):null};
+  }
   $('tb').innerHTML=h;
-  const dates=[...new Set(D.p.map(r=>r[0]))].sort();
+  const dates=[...new Set([...D.p,...D.v].map(r=>r[0]))].sort();
   const ds=devs.slice(0,40).map(([id,v],i)=>({label:`${v[1]} ${v[2]} ${v[3]}`,borderColor:`hsl(${i*47%360} 65% 45%)`,pointRadius:2,tension:.2,
-    data:dates.map(d=>{const p=ix[d+'|'+id+'|'+z];return p?Math.max(...Object.values(p)):null}),spanGaps:true}));
+    data:dates.map(d=>series(d,id)),spanGaps:true}));
   chart?.destroy();chart=new Chart($('ch'),{type:'line',data:{labels:dates.map(d=>new Date(d).toLocaleDateString('de-DE')),datasets:ds},
     options:{maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:11}}},
     tooltip:{callbacks:{label:c=>c.dataset.label+': '+eur(c.parsed.y)}}},scales:{y:{ticks:{callback:v=>eur(v)}}}}});
 }
 $('csv').onclick=()=>{const ids=new Set(sel().map(([i])=>i));
-  const rows=[['Datum','Hersteller','Modell','Speicher','Farbe','Zustand','Anbieter','Preis']];
-  D.p.filter(r=>ids.has(String(r[1]))).forEach(r=>{const v=D.devs[r[1]];rows.push([r[0],...v,Z[r[3]],D.an[r[2]],String(r[4]).replace('.',',')])});
+  const rows=[['Art','Datum','Hersteller','Modell','Speicher','Farbe','Zustand','Anbieter','Preis']];
+  D.p.filter(r=>ids.has(String(r[1]))).forEach(r=>rows.push(['Ankauf',r[0],...D.devs[r[1]],ZA[r[3]],D.an[r[2]]||r[2],String(r[4]).replace('.',',')]));
+  D.v.filter(r=>ids.has(String(r[1]))).forEach(r=>rows.push(['Verkauf',r[0],...D.devs[r[1]],ZV[r[3]],(D.sh||{})[r[2]]||r[2],String(r[4]).replace('.',',')]));
   const blob=new Blob(['﻿'+rows.map(r=>r.join(';')).join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ankaufpreise.csv';a.click()};
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='preise.csv';a.click()};
 $('out').onclick=()=>{sessionStorage.removeItem('pw');location.reload()};
 $('lf').onsubmit=async e=>{e.preventDefault();$('err').textContent='';
   try{const d=await unlock($('pw').value);sessionStorage.setItem('pw',$('pw').value);init(d)}catch(x){$('err').textContent='Falsches Passwort.'}};
