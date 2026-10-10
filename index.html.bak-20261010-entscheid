@@ -46,7 +46,7 @@ td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.er
     <div style="height:340px"><canvas id="ch"></canvas></div>
     <div class="s" id="chs"></div></div>
   <div class="card"><h3 style="margin-top:0">Ankaufpreise</h3><div class="wrap"><table id="tb"></table></div>
-    <div class="s" id="tbs">Preise je Gerät/Anbieter/Zustand sind die jeweils neuesten bis zum gewählten Stand (Geräte laufen auf einem rollierenden Abfrage-Takt). Spalte „Abruf" = Tag des letzten Preis-Updates für dieses Gerät. Grün = bester Ankaufpreis je Zustand. Quellen: wirkaufens und clevertronic, jeweils direkt.</div>
+    <div class="s" id="tbs">Preise je Gerät/Anbieter/Zustand sind die jeweils neuesten bis zum gewählten Stand (Geräte laufen auf einem rollierenden Abfrage-Takt). Spalte „Abruf" = Tag des letzten Preis-Updates für dieses Gerät. Grün = bester Ankaufpreis je Zustand. Quellen: rebuy, wirkaufens und clevertronic, jeweils direkt.</div>
   </div>
 </div>
 </main>
@@ -124,7 +124,7 @@ function render(){
     h+=row;
   }
   $('tb').innerHTML=h;
-  $('tbs').textContent=devs.length?`${devs.length} Geräte. Preise je Gerät/Anbieter/Zustand sind die jeweils neuesten bis zum gewählten Stand. Grün = bester Ankaufpreis je Zustand. Quellen direkt: wirkaufens (ohne Farbunterscheidung), clevertronic.`:'Keine Geräte für diese Filter.';
+  $('tbs').textContent=devs.length?`${devs.length} Geräte. Preise je Gerät/Anbieter/Zustand sind die jeweils neuesten bis zum gewählten Stand. Grün = bester Ankaufpreis je Zustand. Quellen direkt: rebuy, wirkaufens (ohne Farbunterscheidung), clevertronic.`:'Keine Geräte für diese Filter.';
   const dates=[...new Set((D.p||[]).map(r=>r[0]))].sort();
   const ds=devs.slice(0,40).map(([id,v],i)=>({label:`${nm(v)} ${v[2]} ${v[3]}`,borderColor:`hsl(${i*47%360} 65% 45%)`,pointRadius:2,tension:.2,
     data:dates.map(dd=>{const p=atExact(IX,dd,id,zIdx);return p?mx(Object.values(p)):null}),spanGaps:true}));
