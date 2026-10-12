@@ -19,7 +19,12 @@ button{background:var(--m);color:#fff;border:0;cursor:pointer}button.sec{backgro
 table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap}
 th{background:#305496;color:#fff;position:sticky;top:0}td:nth-child(-n+4),th:nth-child(-n+4){text-align:left}
 td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.err{color:#c00;margin-top:8px}.s{color:var(--s);font-size:12px}
-.hidden{display:none}
+.hidden{display:none!important}
+.tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}.tabs button{background:#fff;color:var(--m);border:1px solid var(--m);white-space:nowrap}
+.tabs button.on{background:var(--m);color:#fff}td.neg{color:#c00}td.pos{color:#0a7a2f}
+.t2 th,.t2 td{text-align:right!important}.t2 td.g,.t2 th.g{text-align:left!important;white-space:normal;min-width:130px;position:sticky;left:0;background:#fff;z-index:1}.t2 th.g{background:#305496;z-index:2}
+@media(max-width:600px){main{padding:8px}.card{padding:10px}header h1{font-size:15px}.f label{flex:1 1 45%}.f select,.f input{width:100%}
+ .f button{flex:1 1 45%}table{font-size:12px}th,td{padding:5px 6px}}
 </style>
 </head>
 <body>
@@ -32,6 +37,7 @@ td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.er
   <div id="err" class="err"></div>
 </div>
 <div id="app" class="hidden">
+  <div class="tabs" id="tabs"><button data-t="a" class="on">Ankauf</button><button data-t="v">Verkauf</button><button data-t="s">Spread</button></div>
   <div class="card f">
     <label>Hersteller<select id="fh"></select></label>
     <label>Modell<select id="fm"></select></label>
@@ -42,12 +48,18 @@ td.b{background:var(--g);font-weight:600}.wrap{overflow:auto;max-height:70vh}.er
     <button class="sec" id="csv">CSV-Export (Auswahl, alle Tage)</button>
     <button class="sec" id="out">Abmelden</button>
   </div>
+  <div id="va">
   <div class="card"><h3 style="margin-top:0" id="cht">Preisverlauf</h3>
     <div style="height:340px"><canvas id="ch"></canvas></div>
     <div class="s" id="chs"></div></div>
   <div class="card"><h3 style="margin-top:0">Ankaufpreise</h3><div class="wrap"><table id="tb"></table></div>
     <div class="s" id="tbs">Preise je Gerät/Anbieter/Zustand sind die jeweils neuesten bis zum gewählten Stand (Geräte laufen auf einem rollierenden Abfrage-Takt). Spalte „Abruf" = Tag des letzten Preis-Updates für dieses Gerät. Grün = bester Ankaufpreis je Zustand. Quellen: wirkaufens und clevertronic, jeweils direkt.</div>
   </div>
+  </div>
+  <div id="vv" class="card hidden"><h3 style="margin-top:0">Verkaufspreise (Refurbished)</h3><div class="wrap"><table id="tv" class="t2"></table></div>
+    <div class="s" id="tvs"></div></div>
+  <div id="vs" class="card hidden"><h3 style="margin-top:0">Spread (günstigster Verkauf − höchster Ankauf)</h3><div class="wrap"><table id="ts" class="t2"></table></div>
+    <div class="s" id="tss"></div></div>
 </div>
 </main>
 <script>
@@ -88,9 +100,46 @@ function sel(){
     return a[3]<b[3]?-1:a[3]>b[3]?1:0;
   });
 }
+let VX,TAB='a';
+const mn=a=>{a=a.filter(x=>x!=null);return a.length?Math.min(...a):null};
+const dd=x=>x?new Date(x).toLocaleDateString('de-DE'):'–';
+function allDates(){return [...new Set([...(D.p||[]),...(D.v||[])].map(r=>r[0]))].sort().reverse()}
+function setTab(t){TAB=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  $('va').classList.toggle('hidden',t!=='a');$('vv').classList.toggle('hidden',t!=='v');$('vs').classList.toggle('hidden',t!=='s');
+  $('fz').parentElement.classList.toggle('hidden',t!=='a');render()}
+const gc=v=>`<td class="g">${nm(v)}<br><span class="s">${v[2]} · ${v[3]}</span></td>`;
+function renderV(){
+  const day=$('fd').value,devs=sel(),VZ=D.vz||[],shops=[...new Set((D.v||[]).map(r=>r[2]))].sort();
+  if(!shops.length){$('tv').innerHTML='';$('tvs').textContent='Noch keine Verkaufspreise vorhanden.';return}
+  let h='<tr><th class="g">Gerät</th>'
+    +VZ.map(z=>(shops.length>1?shops.map(a=>`<th>${z}<br>${D.van[a]||a}</th>`).join(''):'')+`<th>${z}${shops.length>1?'<br>Best':''}</th>`).join('')+'<th>Abruf</th></tr>';
+  let n=0;
+  for(const [id,v] of devs){
+    let rowDate=null,cells='',any=false;
+    VZ.forEach((_,zi)=>{const e=atLatest(VX,day,id,zi),p=e?e.obj:{};if(e&&(!rowDate||e.date>rowDate))rowDate=e.date;
+      const vals=shops.map(a=>p[a]),best=mn(vals);if(best!=null)any=true;
+      if(shops.length>1)cells+=vals.map(x=>`<td class="${x!=null&&x===best?'b':''}">${eur(x)}</td>`).join('');
+      cells+=`<td class="${best!=null?'b':''}"><b>${eur(best)}</b></td>`});
+    if(!any)continue;n++;
+    h+=`<tr>${gc(v)}${cells}<td class="s">${dd(rowDate)}</td></tr>`;
+  }
+  $('tv').innerHTML=h;
+  $('tvs').textContent=n?`${n} Geräte mit lieferbarem Angebot. Neuester Preis je Gerät/Zustand bis zum gewählten Stand; Best = günstigster Verkaufspreis. Zustände laut Shop („Gebraucht“ = Akzeptabel); falls ein Zustand nur mit neuem Akku lieferbar ist, inkl. Akku-Aufpreis. Versand kostenlos. Quelle: clevertronic-Shop direkt (Swappie nicht abrufbar).`:'Keine lieferbaren Verkaufsangebote für diese Filter.';
+}
+function renderS(){
+  const day=$('fd').value,devs=sel(),VZ=D.vz||[];
+  let h='<tr><th class="g">Gerät</th><th>Zustand</th><th>Spread €</th><th>Spread %</th><th>Verkauf min</th><th>Ankauf max</th><th>Ankauf bei</th></tr>',n=0;
+  for(const [id,v] of devs)ZA.forEach((z,ai)=>{
+    const vi=VZ.indexOf(z),ea=atLatest(IX,day,id,ai),ev=vi<0?null:atLatest(VX,day,id,vi);if(!ea||!ev)return;
+    const ap=Object.entries(ea.obj).filter(([,x])=>x!=null).sort((x,y)=>y[1]-x[1])[0],vp=mn(Object.values(ev.obj));if(!ap||vp==null)return;
+    const sp=vp-ap[1];n++;
+    h+=`<tr>${gc(v)}<td>${z}</td><td class="${sp<0?'neg':'pos'}"><b>${eur(sp)}</b></td><td>${(sp/ap[1]*100).toLocaleString('de-DE',{maximumFractionDigits:1})} %</td><td>${eur(vp)}</td><td>${eur(ap[1])}</td><td class="s">${ap[0]}</td></tr>`});
+  $('ts').innerHTML=h;
+  $('tss').textContent=n?`${n} Kombinationen Gerät × Zustand mit Ankauf- und Verkaufspreis (je neuester Stand bis zum gewählten Datum). Spread = günstigster Verkaufspreis − höchster Ankaufpreis; % bezogen auf Ankauf.`:'Keine Gerät×Zustand-Kombination mit Ankauf- und Verkaufspreis für diese Filter.';
+}
 function init(d){
-  D=d;IX=index(d.p||[]);$('login').classList.add('hidden');$('app').classList.remove('hidden');
-  const dates=[...new Set((d.p||[]).map(r=>r[0]))].sort().reverse();
+  D=d;IX=index(d.p||[]);VX=index(d.v||[]);$('login').classList.add('hidden');$('app').classList.remove('hidden');
+  const dates=allDates();
   $('stand').textContent=d.stand?'Stand '+new Date(d.stand).toLocaleDateString('de-DE'):'Noch keine Direktpreise';
   $('fd').innerHTML=dates.map(dd=>`<option value="${dd}">${new Date(dd).toLocaleDateString('de-DE')}</option>`).join('');
   opts($('fh'),[...new Set(Object.values(d.devs).map(v=>v[0]))].sort(),true);
@@ -99,9 +148,12 @@ function init(d){
   $('fm').onchange=()=>{updS();render()};
   ['fs','fd','fz'].forEach(i=>$(i).onchange=render);
   $('fq').oninput=render;
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
   render();
 }
 function render(){
+  if(TAB==='v')return renderV();
+  if(TAB==='s')return renderS();
   const day=$('fd').value,devs=sel(),zs=$('fz').value,zIdx=ZA.indexOf(zs);
   const shops=[...new Set((D.p||[]).map(r=>r[2]))].sort((a,b)=>(a==='rebuy'?0:a==='wirkaufens'?1:2)-(b==='rebuy'?0:b==='wirkaufens'?1:2));
   $('cht').textContent='Preisverlauf – Zustand '+zs;
@@ -134,9 +186,11 @@ function render(){
 }
 $('csv').onclick=()=>{
   const ids=new Set(sel().map(([i])=>i));
-  const rows=[['Datum','Hersteller','Modell','Speicher','Farbe','Zustand','Anbieter (Quelle)','Preis']];
+  const rows=[['Art','Datum','Hersteller','Modell','Speicher','Farbe','Zustand','Anbieter (Quelle)','Preis']];
   (D.p||[]).filter(r=>ids.has(String(r[1]))).forEach(r=>{const v=D.devs[r[1]];
-    rows.push([r[0],v[0],v[1],v[2],v[3],ZA[r[3]],D.an[r[2]]||r[2],String(r[4]).replace('.',',')])});
+    rows.push(['Ankauf',r[0],v[0],v[1],v[2],v[3],ZA[r[3]],D.an[r[2]]||r[2],String(r[4]).replace('.',',')])});
+  (D.v||[]).filter(r=>ids.has(String(r[1]))).forEach(r=>{const v=D.devs[r[1]];
+    rows.push(['Verkauf',r[0],v[0],v[1],v[2],v[3],D.vz[r[3]],D.van[r[2]]||r[2],String(r[4]).replace('.',',')])});
   const blob=new Blob(['﻿'+rows.map(r=>r.join(';')).join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='preise.csv';a.click()};
 $('out').onclick=()=>{sessionStorage.removeItem('pw');location.reload()};
