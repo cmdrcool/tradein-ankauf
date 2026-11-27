@@ -124,7 +124,7 @@ function renderV(){
     h+=`<tr>${gc(v)}${cells}<td class="s">${dd(rowDate)}</td></tr>`;
   }
   $('tv').innerHTML=h;
-  $('tvs').textContent=n?`${n} Geräte mit lieferbarem Angebot. Neuester Preis je Gerät/Zustand bis zum gewählten Stand; Best = günstigster Verkaufspreis. Zustände laut Shop („Gebraucht“ = Akzeptabel); falls ein Zustand nur mit neuem Akku lieferbar ist, inkl. Akku-Aufpreis. Versand kostenlos. Quelle: clevertronic-Shop direkt (Swappie nicht abrufbar).`:'Keine lieferbaren Verkaufsangebote für diese Filter.';
+  $('tvs').textContent=n?`${n} Geräte mit lieferbarem Angebot. Neuester Preis je Gerät/Zustand bis zum gewählten Stand; Best = günstigster Verkaufspreis. Zustände laut Shop („Gebraucht“ = Akzeptabel); falls ein Zustand nur mit neuem Akku lieferbar ist, inkl. Akku-Aufpreis. Ausverkaufte Zustände sind ausgeblendet. Preise ohne Versand (asgoodasnew Standardversand 6,90 €, clevertronic kostenlos). Quellen: asgoodasnew- und clevertronic-Shop direkt („Budget“ = Akzeptabel; Swappie nicht abrufbar).`:'Keine lieferbaren Verkaufsangebote für diese Filter.';
 }
 function renderS(){
   const day=$('fd').value,devs=sel(),VZ=D.vz||[];
